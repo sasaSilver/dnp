@@ -1,11 +1,14 @@
 syntax = "proto3";
 
 service Phonebook {
-    rpc Lookup (LookupRequest) returns (LookupResponse) {}
-    rpc AddEntry (AddEntryRequest) returns (AddEntryResponse) {}
+    rpc Lookup (LookupRequest) returns (LookupResponse);
+    rpc AddEntry (AddEntryRequest) returns (AddEntryResponse);
 }
 
-message LookupRequest { string name = 1; }
+message LookupRequest {
+    string name = 1; 
+}
+
 message LookupResponse {
     string number = 1;
     bytes signature = 2;
@@ -18,5 +21,6 @@ message AddEntryRequest {
 
 message AddEntryResponse {
     bool success = 1;
-    string message = 2;
+    uint32 id = 2;
+    string message = 3;
 }
