@@ -29,7 +29,7 @@ The gRPC server will listen on localhost:50051.
 Execute test interactions with the server:
 
 ```bash
-python -m tests
+python -m tests.test_server
 ```
 - Tests include:
 
@@ -43,7 +43,6 @@ python -m tests
 - Timing responses
 
 6. 💡 Streamlit Web Interface
-If a Streamlit-based client UI exists (src/client.py), run it with:
 
 ```bash
 python -m streamlit run src/client.py
