@@ -29,7 +29,7 @@ The gRPC server will listen on localhost:50051.
 Execute test interactions with the server:
 
 ```bash
-python -m tests.test_server
+python -m src.test_server
 ```
 - Tests include:
 
