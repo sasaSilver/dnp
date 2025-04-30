@@ -5,16 +5,24 @@ from cryptography.hazmat.primitives.asymmetric import ed25519
 import proto.phonebook_pb2_grpc as phonebook_pb2_grpc
 from proto.phonebook_pb2 import (
     LookupRequest, LookupResponse,
-    AddEntryRequest, AddEntryResponse
+    AddEntryRequest, AddEntryResponse,
+    GetKeyRequest, GetKeyResponse
 )
 
 SERVER_ADDRESS = "localhost:50051"
-PUBKEY = ed25519.Ed25519PublicKey.from_public_bytes(
-    bytes.fromhex(st.secrets["SERVER_PUBLIC_KEY"])
-)
+channel = grpc.insecure_channel(SERVER_ADDRESS)
+stub = phonebook_pb2_grpc.PhonebookStub(channel)
 
-def verify_signature(name: str, number: str, signature: bytes):
-    signed_data = f"{name}:{number}".encode()
+def get_key():
+    key_reponse: GetKeyResponse = stub.GetKey(GetKeyRequest())
+    return ed25519.Ed25519PublicKey.from_public_bytes(
+        bytes.fromhex(key_reponse.key)
+    )
+
+PUBKEY = get_key()
+
+def verify_signature(name: str, number: str, time: str, signature: bytes):
+    signed_data = f"{name}:{number}:{time}".encode()
     try:
         PUBKEY.verify(signature, signed_data)
     except:
@@ -25,9 +33,6 @@ def verify_signature(name: str, number: str, signature: bytes):
 def main():
     st.title("🔍 Phonebook")
     
-    channel = grpc.insecure_channel(SERVER_ADDRESS)
-    stub = phonebook_pb2_grpc.PhonebookStub(channel)
-    
     lookup_tab, add_tab = st.tabs(["Lookup", "Add"])
     
     lookup_tab.header("Look up a number")
@@ -36,7 +41,7 @@ def main():
         if name:
             try:
                 lookup_response: LookupResponse = stub.Lookup(LookupRequest(name=name))
-                valid = verify_signature(name, lookup_response.number, lookup_response.signature)
+                valid = verify_signature(name, lookup_response.number, lookup_response.time, lookup_response.signature)
                 if valid:
                     lookup_tab.badge("Valid signature!", color="green", icon="✅")
                 else:
