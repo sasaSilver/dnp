@@ -1,13 +1,12 @@
 import asyncio
 import datetime
-import functools
+import logging
 
 import grpc
-from grpc import aio
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.hazmat.primitives import serialization
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from proto import phonebook_pb2_grpc
 from proto.phonebook_pb2 import (
@@ -15,136 +14,110 @@ from proto.phonebook_pb2 import (
     AddEntryRequest, AddEntryResponse,
     GetKeyRequest, GetKeyResponse
 )
-from models.contact import ContactSchema
-from .core import get_db, create_tables
+from .models.contact import ContactSchema
+from .core import inject_session, create_tables, engine
+from .config import settings
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("SERVER")
 
 class PhonebookService(phonebook_pb2_grpc.PhonebookServicer):
     def __init__(self) -> None:
         self.private_key = ed25519.Ed25519PrivateKey.generate()
         self.public_key = self.private_key.public_key()
-        print(
-            "SERVER PUBLIC KEY:", self.public_key.public_bytes(
-                encoding=serialization.Encoding.Raw,
-                format=serialization.PublicFormat.Raw
-            ).hex()
-        )
 
     async def GetKey(
         self,
         request: GetKeyRequest,
-        context: aio.ServicerContext
+        context: grpc.aio.ServicerContext
     ) -> GetKeyResponse:
-        raw_key = self.public_key.public_bytes(
+        key = self.public_key.public_bytes(
             encoding=serialization.Encoding.Raw,
             format=serialization.PublicFormat.Raw
-        )
-        return GetKeyResponse(
-            public_key=raw_key,
-            format="RAW"
-        )
-    
+        ).hex()
+        logger.info("Key request")
+        return GetKeyResponse(key=key)
+
+    @inject_session
     async def AddEntry(
         self,
         request: AddEntryRequest,
-        context: aio.ServicerContext
+        context: grpc.aio.ServicerContext,
+        db: AsyncSession,
     ) -> AddEntryResponse:
-        # Используем асинхронный генератор get_db для получения сессии
-        db_gen = get_db()
-        session = await anext(db_gen)
-        
-        try:
-            # Проверяем, существует ли уже запись с таким именем
-            existing_entry = await session.execute(
-                select(ContactSchema).where(ContactSchema.name == request.name)
-            )
-            if existing_entry.scalar_one_or_none():
-                return AddEntryResponse(
-                    success=False,
-                    message="Name already exists"
-                )
-            
-            # Создаем новую запись
-            new_contact = ContactSchema(
-                name=request.name,
-                phone_number=request.number
-            )
-            session.add(new_contact)
-            await session.commit()
-            # Обновляем объект, чтобы получить ID
-            await session.refresh(new_contact)
-            
-            return AddEntryResponse(
-                success=True,
-                id=new_contact.id,
-                message="Entry added"
-            )
-        except Exception as e:
-            await session.rollback()
+        existing_entry = await db.execute(
+            select(ContactSchema).where(ContactSchema.name == request.name)
+        )
+        if existing_entry.scalar_one_or_none():
             return AddEntryResponse(
                 success=False,
-                message=f"Error: {str(e)}"
+                message="Name already exists"
             )
-        finally:
-            # Закрываем генератор
-            try:
-                await db_gen.aclose()
-            except Exception:
-                pass
-    
+
+        new_contact = ContactSchema(
+            name=request.name,
+            phone_number=request.number
+        )
+        db.add(new_contact)
+        await db.flush()
+        await db.refresh(new_contact)
+
+        logger.info(f"Add entry: {request.name}:{request.number}")
+        
+        return AddEntryResponse(
+            success=True,
+            message="Entry added"
+        )
+
+    @inject_session
     async def Lookup(
         self,
         request: LookupRequest,
-        context: aio.ServicerContext
+        context: grpc.aio.ServicerContext,
+        db: AsyncSession,
     ) -> LookupResponse:
-        # Используем асинхронный генератор get_db для получения сессии
-        db_gen = get_db()
-        session = await anext(db_gen)
-        
-        try:
-            # Ищем контакт в базе данных
-            result = await session.execute(
-                select(ContactSchema).where(ContactSchema.name == request.name)
-            )
-            contact = result.scalar_one_or_none()
-            
-            if not contact:
-                await context.abort(grpc.StatusCode.NOT_FOUND, "Name not found")
-                
-            # Формируем ответ
-            number: str = contact.phone_number
-            time = datetime.datetime.now().isoformat()
-            data_to_sign: bytes = f"{request.name}:{number}:{time}".encode()
-            signature: bytes = self.private_key.sign(data_to_sign)
-            
+        result = await db.execute(
+            select(ContactSchema).where(ContactSchema.name == request.name)
+        )
+        contact = result.scalar_one_or_none()
+
+        if not contact:
             return LookupResponse(
-                number=number,
-                time=time,
-                signature=signature
+                success=False,
+                number="",
+                time="",
+                signature=""
             )
-        finally:
-            # Закрываем генератор
-            try:
-                await db_gen.aclose()
-            except Exception:
-                pass
+
+        number: str = contact.phone_number
+        time = datetime.datetime.now().isoformat()
+        data_to_sign: bytes = f"{request.name}:{number}:{time}".encode()
+        signature: bytes = self.private_key.sign(data_to_sign)
+
+        logger.info(f"Look up: {request.name}:{number}")
+
+        return LookupResponse(
+            success=True,
+            number=number,
+            time=time,
+            signature=signature
+        )
 
 async def serve():
-    # Создаем таблицы при необходимости
     await create_tables()
-    
-    # Запускаем сервер
-    server = aio.server() 
+
+    server = grpc.aio.server()
     phonebook_pb2_grpc.add_PhonebookServicer_to_server(
         PhonebookService(), server
     )
-    server.add_insecure_port("[::]:50051")
+    server.add_insecure_port(settings.server_addr)
     await server.start()
     print("Server running on port 50051")
-    
+
     try:
         await server.wait_for_termination()
-    except asyncio.CancelledError:
+    finally:
+        engine.dispose()
         await server.stop(grace=5)
 
 if __name__ == "__main__":

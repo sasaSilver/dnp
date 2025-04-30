@@ -1,5 +1,0 @@
-__init__
-config
-core
-models
-server
