@@ -9,7 +9,7 @@ source venv/bin/activate
 pip install -e . 
 ```
 
-2. 📁 Compile .proto File
+## 2. 📁 Compile .proto File
 Generate Python code from the phonebook.proto file:
 
 ```bash
@@ -17,7 +17,10 @@ python -m proto
 ```
 This will generate phonebook_pb2.py and phonebook_pb2_grpc.py with correct relative imports.
 
-3. 🚀 Start the Server
+## 3. Create your `.env` file. Consult `.env.example`
+
+
+## 4. 🚀 Start the Server
 
 ```bash
 
@@ -25,7 +28,10 @@ python -m src.server
 ```
 The gRPC server will listen on localhost:50051.
 
-5. 🧪 Run Client Tests (Terminal)
+## 🧪 Run Client Tests (Terminal)
+
+Set environment variable `TESTING` to 1 in `.env`
+
 Execute test interactions with the server:
 
 ```bash
@@ -42,7 +48,11 @@ python -m src.test_server
 
 - Timing responses
 
-6. 💡 Streamlit Web Interface
+💡 Streamlit Web Interface
+
+Located in `front` branch.
+
+Repeat steps 1-3 for the server.
 
 ```bash
 python -m streamlit run src/client.py
