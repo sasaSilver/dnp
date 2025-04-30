@@ -1,7 +1,7 @@
 [project]
-name = "dnp"
+name = "dnp_frontend"
 version = "0.1.0"
-description = "Add your description here"
+description = "Streamlit client for the phonebook app"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [

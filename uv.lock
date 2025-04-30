@@ -98,7 +98,7 @@ wheels = [
 ]
 
 [[package]]
-name = "dnp"
+name = "dnp-frontend"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
