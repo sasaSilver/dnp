@@ -12,14 +12,12 @@ from sqlalchemy import select
 from proto import phonebook_pb2_grpc
 from proto.phonebook_pb2 import (
     LookupRequest, LookupResponse,
-    AddEntryRequest, AddEntryResponse
+    AddEntryRequest, AddEntryResponse,
+    GetKeyRequest, GetKeyResponse
 )
 from models.contact import ContactSchema
 from .core import get_db, create_tables
 
-"""
-TODO add service layer with database querying & logic
-"""
 
 class PhonebookService(phonebook_pb2_grpc.PhonebookServicer):
     def __init__(self) -> None:
@@ -30,6 +28,20 @@ class PhonebookService(phonebook_pb2_grpc.PhonebookServicer):
                 encoding=serialization.Encoding.Raw,
                 format=serialization.PublicFormat.Raw
             ).hex()
+        )
+
+    async def GetKey(
+        self,
+        request: GetKeyRequest,
+        context: aio.ServicerContext
+    ) -> GetKeyResponse:
+        raw_key = self.public_key.public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw
+        )
+        return GetKeyResponse(
+            public_key=raw_key,
+            format="RAW"
         )
     
     async def AddEntry(
