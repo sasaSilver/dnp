@@ -101,11 +101,13 @@ class PhonebookService(phonebook_pb2_grpc.PhonebookServicer):
                 
             # Формируем ответ
             number: str = contact.phone_number
-            data_to_sign: bytes = f"{request.name}:{number}:{datetime.now()}".encode()
+            time = datetime.datetime.now().isoformat()
+            data_to_sign: bytes = f"{request.name}:{number}:{time}".encode()
             signature: bytes = self.private_key.sign(data_to_sign)
             
             return LookupResponse(
                 number=number,
+                time=time,
                 signature=signature
             )
         finally:

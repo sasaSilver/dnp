@@ -11,7 +11,7 @@ dependencies = [
     "grpcio-tools>=1.71.0",
     "mypy-protobuf>=3.6.0",
     "pydantic-settings>=2.9.1",
-    "sqlalchemy>=2.0.40",
+    "sqlalchemy[asyncio]>=2.0.40",
 ]
 
 [tool.pytest.ini_options]
